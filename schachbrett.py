@@ -321,7 +321,7 @@ def cli(argv):
             ws, ss, _ = spieler(lade_partie()[0], modus, stufe, seite)
             print(f"Aktuell: Spielart {modus}, Weiß: {ws}, Schwarz: {ss}, Stockfish-Stufe: {STUFEN[stufe][0]}")
             print(MODUS_HILFE); return 0
-        art = {"mensch-gegen-ki": "ki", "mensch-gegen-stockfish": "sf", "klaus-gegen-ki": "ki", "klaus-gegen-stockfish": "sf", "ki-gegen-stockfish": "ki_sf", "ki-gegen-ki": "ki_ki"}
+        art = {"mensch-gegen-ki": "ki", "mensch-gegen-stockfish": "sf", "ki-gegen-stockfish": "ki_sf", "ki-gegen-ki": "ki_ki"}
         stu = {"anfaenger": 0, "anfänger": 0, "gelegenheit": 1, "verein": 2, "stark": 3, "meister": 4, "voll": 5}
         rest = []; i = 0
         while i < len(args):
