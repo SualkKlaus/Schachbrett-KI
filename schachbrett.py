@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KI-Schachbrett Version 4 · Beyhl Software – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
+"""KI-Schachbrett Version 5 · Beyhl Software – Mensch (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
 
 Aufruf:
   schachbrett.py gui [Name]      Fenster (wird von schach-brett gestartet)
@@ -7,6 +7,7 @@ Aufruf:
   schachbrett.py stellung        Stellung als Text
   schachbrett.py zug <Zug>       Zug der KI (UCI oder SAN)
   schachbrett.py neu             neue Partie
+  schachbrett.py modus ...       Spielart/Farbe/Stärke/Namen einstellen (siehe schach-modus --hilfe)
 Kanal: TCP 127.0.0.1:47321, eine JSON-Zeile hin, eine zurück.
 """
 import json
@@ -20,12 +21,12 @@ import time
 import chess
 
 ORDNER = os.path.dirname(os.path.abspath(__file__))
-HINWEIS = ("WICHTIG FÜR DICH (KI): Spieler zieht mit der MAUS am Brett und sagt seinen Zug NICHT im Chat – frag ihn nie danach. "
+HINWEIS = ("WICHTIG FÜR DICH (KI): Mensch zieht mit der MAUS am Brett und sagt seinen Zug NICHT im Chat – frag ihn nie danach. "
            "Sobald er „du bist dran“ sagt: führe schach-stellung aus (dort steht sein Zug), dann schach-zug <Zug>.")
 SPEICHER = os.path.join(ORDNER, "partie.json")
 FIGUREN = os.path.join(ORDNER, "figuren")
 PORT = 47321
-VERSION_TEXT = "KI-Schachbrett Version 4 · Beyhl Software"
+VERSION_TEXT = "KI-Schachbrett Version 5 · Beyhl Software"
 MODUS_DATEI = os.path.join(ORDNER, "modus.json")
 import shutil
 STOCKFISH = shutil.which("stockfish") or ("/usr/games/stockfish" if os.path.exists("/usr/games/stockfish") else None)
@@ -36,7 +37,7 @@ STUFEN = [("Anfänger", {"Skill Level": 0}),
           ("Starker Spieler", {"UCI_LimitStrength": True, "UCI_Elo": 2000}),
           ("Meister", {"UCI_LimitStrength": True, "UCI_Elo": 2400}),
           ("Volle Stärke", {})]
-MODI = [("ki", "Spieler gegen KI"), ("sf", "Spieler gegen Stockfish"), ("ki_sf", "KI gegen Stockfish"), ("ki_ki", "KI gegen KI")]
+MODI = [("ki", "Mensch gegen KI"), ("sf", "Mensch gegen Stockfish"), ("ki_sf", "KI gegen Stockfish"), ("ki_ki", "KI gegen KI")]
 
 
 def lade_modus():
@@ -60,7 +61,7 @@ def speichere_modus(modus, stufe, seite=True):
 
 def spieler(name, modus, stufe, seite=True):
     """(Weiß-Name, Schwarz-Name, Farbe der Befehls-KI oder None).
-    seite = Farbe des ERSTGENANNTEN Spielers (Spieler bzw. bei „KI gegen Stockfish“ die KI); True = Weiß."""
+    seite = Farbe des ERSTGENANNTEN Spielers (Mensch bzw. bei „KI gegen Stockfish“ die KI); True = Weiß."""
     sf = f"Stockfish ({STUFEN[stufe][0]})"
     if modus == "ki_ki":
         try:
@@ -69,11 +70,11 @@ def spieler(name, modus, stufe, seite=True):
         except Exception:
             return "KI Weiß", "KI Schwarz", "beide"
     if modus == "sf":
-        erster, zweiter, ki = "Spieler", sf, None
+        erster, zweiter, ki = "Mensch", sf, None
     elif modus == "ki_sf":
         erster, zweiter, ki = name, sf, seite
     else:
-        erster, zweiter, ki = "Spieler", name, (not seite)
+        erster, zweiter, ki = "Mensch", name, (not seite)
     return (erster, zweiter, ki) if seite else (zweiter, erster, ki)
 GLEITZEIT = 2000  # ms pro Figur
 
@@ -174,7 +175,7 @@ def stellung_text(name, moves):
     z = []
     ende = ende_text(b)
     if ende:
-        z.append(f"PARTIE BEENDET: {ende}. (Neue Partie nur auf des Spielers Wunsch: schach-neu)")
+        z.append(f"PARTIE BEENDET: {ende}. (Neue Partie nur auf des Menschen Wunsch: schach-neu)")
     else:
         ws, ss, ki = spieler(name, *lade_modus())
         farbe = "Weiß" if b.turn == chess.WHITE else "Schwarz"
@@ -184,7 +185,7 @@ def stellung_text(name, moves):
         elif ki is not None and b.turn == ki:
             z.append(f"AM ZUG: {farbe} = {name} (DU, die KI). Mach deinen Zug mit: schach-zug <Zug>")
         elif ki is None:
-            z.append(f"AM ZUG: {farbe} = {wer}. Es spielt gerade Spieler gegen Stockfish – du ziehst nicht.")
+            z.append(f"AM ZUG: {farbe} = {wer}. Es spielt gerade Mensch gegen Stockfish – du ziehst nicht.")
         else:
             z.append(f"AM ZUG: {farbe} = {wer}. Du ({name}) musst warten, bis {wer} gezogen hat.")
     if moves:
@@ -205,7 +206,7 @@ def stellung_text(name, moves):
             reihe.append(p.symbol() if p else ".")
         z.append(f"  {r + 1} " + " ".join(reihe) + f" {r + 1}")
     z.append("    a b c d e f g h")
-    z.append("  (Großbuchstaben = Weiß/Spieler, Kleinbuchstaben = Schwarz/KI, . = leer)")
+    z.append("  (Großbuchstaben = Weiß/Mensch, Kleinbuchstaben = Schwarz/KI, . = leer)")
     z.append("")
     gw, gs = geschlagene(moves)
     sym = lambda t, c: chess.Piece(t, c).symbol()
@@ -216,12 +217,28 @@ def stellung_text(name, moves):
     z.append("")
     if not ende:
         if b.is_check():
-            z.append(("SCHACH! " + ("Schwarz (du)" if b.turn == chess.BLACK else "Weiß (Spieler)") +
+            z.append(("SCHACH! " + ("Schwarz (du)" if b.turn == chess.BLACK else "Weiß (Mensch)") +
                       " steht im Schach."))
         legal = [m.uci() for m in b.legal_moves]
         z.append(f"Legale Züge für {'Schwarz' if b.turn == chess.BLACK else 'Weiß'} ({len(legal)}):")
         z.append(" ".join(legal))
     return "\n".join(z)
+
+
+MODUS_HILFE = """schach-modus – Brett einstellen (springt sofort um, danach am besten schach-neu)
+
+  schach-modus <spielart> [farbe] [stufe] [--weiss "Name"] [--schwarz "Name"]
+
+  spielart:  mensch-gegen-ki | mensch-gegen-stockfish | ki-gegen-stockfish | ki-gegen-ki
+  farbe:     weiss | schwarz   – Farbe des ZUERST genannten Spielers (Mensch bzw. KI)
+  stufe:     anfaenger | gelegenheit | verein | stark | meister | voll   (nur mit Stockfish)
+  Namen:     nur bei ki-gegen-ki:  --weiss "Claude Fable 5.2 (Medium)" --schwarz "GPT-6 Astra (Medium)"
+
+Beispiele:
+  schach-modus ki-gegen-stockfish weiss anfaenger      (du KI spielst Weiß gegen Stockfish auf Anfänger)
+  schach-modus mensch-gegen-ki weiss                    (Mensch Weiß mit der Maus, du Schwarz)
+  schach-modus ki-gegen-ki --weiss "Fable" --schwarz "Astra"
+Ohne Angaben zeigt schach-modus die aktuelle Einstellung."""
 
 
 def lage_text(name):
@@ -230,7 +247,7 @@ def lage_text(name):
     ws, ss, ki = spieler(name, modus, stufe, seite)
     t = f"Weiß: {ws} – Schwarz: {ss}."
     if ki is None:
-        return t + " Spieler spielt gegen Stockfish – du (KI) ziehst in dieser Partie NICHT."
+        return t + " Mensch spielt gegen Stockfish – du (KI) ziehst in dieser Partie NICHT."
     if ki == "beide":
         return t + (" KI gegen KI: Jede KI zieht nur ihre eigene Farbe. Mit schach-stellung nachsehen, wer am Zug ist; "
                     "bist du dran: schach-zug <Zug>, sonst warten und erneut schach-stellung.")
@@ -241,7 +258,7 @@ def lage_text(name):
               "führe schach-stellung aus; steht dort, dass du am Zug bist, sofort schach-zug <Zug>. "
               "Danach kurz warten, wieder schach-stellung, bis die Partie beendet ist.")
     else:
-        t += (" Spieler zieht mit der MAUS und sagt seinen Zug NICHT im Chat – frag ihn nie danach. "
+        t += (" Mensch zieht mit der MAUS und sagt seinen Zug NICHT im Chat – frag ihn nie danach. "
               "Bei „du bist dran“: schach-stellung ausführen, dann schach-zug <Zug>.")
         if ki:
             t += " Da du Weiß hast, beginnst DU – führe jetzt gleich schach-stellung und schach-zug aus."
@@ -290,6 +307,47 @@ def cli(argv):
             return 1
         print(r["text"])
         return 0 if r.get("ok") else 1
+
+    if befehl == "modus":
+        args = argv[1:]
+        if args and args[0] in ("--hilfe", "-h", "hilfe", "--help"):
+            print(MODUS_HILFE); return 0
+        modus, stufe, seite = lade_modus()
+        try:
+            d = json.load(open(MODUS_DATEI))
+        except Exception:
+            d = {}
+        if not args:
+            ws, ss, _ = spieler(lade_partie()[0], modus, stufe, seite)
+            print(f"Aktuell: Spielart {modus}, Weiß: {ws}, Schwarz: {ss}, Stockfish-Stufe: {STUFEN[stufe][0]}")
+            print(MODUS_HILFE); return 0
+        art = {"mensch-gegen-ki": "ki", "mensch-gegen-stockfish": "sf", "klaus-gegen-ki": "ki", "klaus-gegen-stockfish": "sf", "ki-gegen-stockfish": "ki_sf", "ki-gegen-ki": "ki_ki"}
+        stu = {"anfaenger": 0, "anfänger": 0, "gelegenheit": 1, "verein": 2, "stark": 3, "meister": 4, "voll": 5}
+        rest = []; i = 0
+        while i < len(args):
+            a = args[i].lower()
+            if a in ("--weiss", "--weiß") and i + 1 < len(args):
+                d["weiss_name"] = args[i + 1]; i += 2; continue
+            if a == "--schwarz" and i + 1 < len(args):
+                d["schwarz_name"] = args[i + 1]; i += 2; continue
+            rest.append(a); i += 1
+        for a in rest:
+            if a in art: modus = art[a]
+            elif a in ("weiss", "weiß"): seite = True
+            elif a == "schwarz": seite = False
+            elif a in stu: stufe = stu[a]
+            else:
+                print(f"Unbekannt: „{a}“."); print(MODUS_HILFE); return 1
+        if modus in ("sf", "ki_sf") and not STOCKFISH:
+            print("Stockfish ist nicht installiert – diese Spielart geht nicht."); return 1
+        d.update({"modus": modus, "stufe": stufe, "seite": seite})
+        json.dump(d, open(MODUS_DATEI, "w"))
+        frage("modus")          # offenes Brett liest neu ein
+        name = lade_partie()[0]
+        ws, ss, _ = spieler(name, modus, stufe, seite)
+        print(f"Eingestellt: Weiß: {ws} – Schwarz: {ss}" + (f" – Stockfish-Stufe: {STUFEN[stufe][0]}" if modus in ("sf", "ki_sf") else ""))
+        print("Für eine neue Partie jetzt: schach-neu")
+        return 0
 
     if befehl == "neu":
         r = frage("neu")
@@ -350,7 +408,7 @@ def gui(argv):
             for typ, txt in ((chess.QUEEN, "Dame"), (chess.ROOK, "Turm"),
                              (chess.BISHOP, "Läufer"), (chess.KNIGHT, "Springer")):
                 b = QPushButton(txt)
-                b.setIcon(QIcon(figur_pixmap(parent.spieler_farbe() if parent.spieler_farbe() is not None else chess.WHITE, typ, 120)))
+                b.setIcon(QIcon(figur_pixmap(parent.mensch_farbe() if parent.mensch_farbe() is not None else chess.WHITE, typ, 120)))
                 b.setIconSize(QSize(120, 120))
                 b.setFont(QFont("Sans", 22, QFont.Bold))
                 b.setMinimumSize(200, 200)
@@ -437,7 +495,7 @@ def gui(argv):
 
         def titel_setzen(self):
             ws, ss, _ = spieler(self.name, getattr(self, "modus", "ki"), getattr(self, "stufe", 1), getattr(self, "seite", True))
-            self.setWindowTitle(f"KI-Schachbrett Version 4 · Beyhl Software – {ws} gegen {ss}")
+            self.setWindowTitle(f"KI-Schachbrett Version 5 · Beyhl Software – {ws} gegen {ss}")
 
         def animiert(self):
             return self.schritt is not None or bool(self.queue)
@@ -454,7 +512,7 @@ def gui(argv):
         def sp(self):
             return spieler(self.name, self.modus, self.stufe, self.seite)
 
-        def spieler_farbe(self):
+        def mensch_farbe(self):
             return self.seite if self.modus in ("ki", "sf") else None
 
         def sf_farbe(self):
@@ -462,9 +520,14 @@ def gui(argv):
 
         def seite_text(self):
             self.cb_seite.setVisible(self.modus != "ki_ki")
-            erster = "Spieler" if self.modus in ("ki", "sf") else (self.name or "KI")
-            for i, f in enumerate(("Weiß", "Schwarz")):
-                self.cb_seite.setItemText(i, f"{erster} spielt {f}")
+            if self.modus == "ki":
+                t = ("Mensch Weiß – KI Schwarz", "Mensch Schwarz – KI Weiß")
+            elif self.modus == "sf":
+                t = ("Mensch Weiß – Stockfish Schwarz", "Mensch Schwarz – Stockfish Weiß")
+            else:
+                t = ("KI Weiß – Stockfish Schwarz", "KI Schwarz – Stockfish Weiß")
+            for i in range(2):
+                self.cb_seite.setItemText(i, t[i])
 
         def sf_pruefen(self):
             self.cb_stufe.setVisible(self.modus in ("sf", "ki_sf"))
@@ -494,8 +557,8 @@ def gui(argv):
                 threading.Thread(target=denken, daemon=True).start()
                 self.update()
 
-        def spieler_darf(self):
-            return (self.modus in ("ki", "sf") and not self.animiert() and self.board.turn == self.spieler_farbe()
+        def mensch_darf(self):
+            return (self.modus in ("ki", "sf") and not self.animiert() and self.board.turn == self.mensch_farbe()
                     and not self.board.is_game_over(claim_draw=True))
 
         # ---- Geometrie
@@ -592,13 +655,13 @@ def gui(argv):
 
         def zurueck_moeglich(self):
             return (self.modus in ("ki", "sf") and not self.sf_laeuft and self.sf_zug is None
-                    and not self.animiert() and self.board.move_stack and self.board.turn != self.spieler_farbe()
+                    and not self.animiert() and self.board.move_stack and self.board.turn != self.mensch_farbe()
                     and not self.board.is_game_over(claim_draw=True))
 
         def zug_zurueck(self):
             if not self.zurueck_moeglich():
                 return
-            move = self.board.pop()                       # des Spielers letzter Zug
+            move = self.board.pop()                       # des Menschen letzter Zug
             speichere_partie(self.name, self.zuege())
             karte = dict(self.vis.piece_map())
             fig = karte.pop(move.to_square, None)
@@ -608,7 +671,7 @@ def gui(argv):
             if weg:
                 karte[move.to_square] = weg
             if move.promotion:
-                fig = chess.Piece(chess.PAWN, self.spieler_farbe())
+                fig = chess.Piece(chess.PAWN, self.mensch_farbe())
             # sichtbar zurückgleiten; am Ende Stellung exakt übernehmen (move=None)
             self.queue.append([(karte, fig, move.to_square, move.from_square, None)])
             if self.schritt is None:
@@ -638,6 +701,14 @@ def gui(argv):
                     self.update()
                 self.nach_vorn()
                 return {"name": self.name, "moves": self.zuege()}
+            if cmd == "modus":
+                self.modus, self.stufe, self.seite = lade_modus()
+                for cb in (self.cb_modus, self.cb_stufe, self.cb_seite): cb.blockSignals(True)
+                i = self.cb_modus.findData(self.modus); self.cb_modus.setCurrentIndex(i if i >= 0 else 0)
+                self.cb_stufe.setCurrentIndex(self.stufe); self.cb_seite.setCurrentIndex(0 if self.seite else 1)
+                for cb in (self.cb_modus, self.cb_stufe, self.cb_seite): cb.blockSignals(False)
+                self.seite_text(); self.titel_setzen(); self.update()
+                return {"ok": True}
             if cmd == "neu":
                 self.neu()
                 return {"name": self.name, "moves": []}
@@ -652,7 +723,7 @@ def gui(argv):
             if ende:
                 return {"ok": False, "text": f"Abgelehnt: Die Partie ist beendet ({ende})."}
             if self.modus == "sf":
-                return {"ok": False, "text": "Abgelehnt: Gerade spielt Spieler gegen Stockfish – du ziehst nicht."}
+                return {"ok": False, "text": "Abgelehnt: Gerade spielt Mensch gegen Stockfish – du ziehst nicht."}
             ki = self.sp()[2]
             if ki == "beide":
                 ki = b.turn
@@ -688,8 +759,8 @@ def gui(argv):
                     t += "\nJetzt denkt Stockfish und zieht von selbst. Lies danach wieder schach-stellung."
                 else:
                     if self.board.is_check():
-                        t += "\nSpieler steht im Schach."
-                    t += "\nJetzt ist Spieler am Zug – warte auf sein „du bist dran“."
+                        t += "\nMensch steht im Schach."
+                    t += "\nJetzt ist Mensch am Zug – warte auf sein „du bist dran“."
             return {"ok": True, "text": t}
 
         def nach_vorn(self):
@@ -704,7 +775,7 @@ def gui(argv):
 
         # ---- Maus
         def mousePressEvent(self, e):
-            if e.button() != Qt.LeftButton or not self.spieler_darf():
+            if e.button() != Qt.LeftButton or not self.mensch_darf():
                 return
             sq = self.feld_an(e.pos())
             if sq is None:
@@ -712,10 +783,10 @@ def gui(argv):
                 self.update()
                 return
             p = self.board.piece_at(sq)
-            if self.auswahl is not None and sq != self.auswahl and not (p and p.color == self.spieler_farbe()):
+            if self.auswahl is not None and sq != self.auswahl and not (p and p.color == self.mensch_farbe()):
                 self.versuche_zug(self.auswahl, sq)
                 return
-            if p and p.color == self.spieler_farbe():
+            if p and p.color == self.mensch_farbe():
                 self.auswahl = sq
                 self.drag_von = sq
                 self.drag_pos = e.pos()
@@ -813,7 +884,7 @@ def gui(argv):
                     p.drawRect(self.feld_rect(s).adjusted(2, 2, -2, -2))
 
             # Auswahl + Zielpunkte
-            if self.auswahl is not None and self.spieler_darf():
+            if self.auswahl is not None and self.mensch_darf():
                 p.fillRect(self.feld_rect(self.auswahl), QColor(60, 140, 255, 140))
                 for m in self.board.legal_moves:
                     if m.from_square == self.auswahl:
