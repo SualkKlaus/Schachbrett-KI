@@ -1,4 +1,4 @@
-# Beyhl Schachbrett KI V3 – Schach gegen jede beliebige KI
+# KI-Schachbrett Version 4 · Beyhl Software – Schach gegen jede beliebige KI
 
 Ein großes, gut lesbares Schachbrett für den Desktop, gegen das **jede KI** spielen kann, die Terminal-Befehle ausführen darf – zum Beispiel Claude Code, OpenCode mit DeepSeek oder ein lokales Modell.
 
@@ -13,6 +13,7 @@ Der Mensch zieht mit der Maus (Weiß), die KI zieht über einfache Befehle (Schw
 - **Neu in Version 3:** Stockfish als Gegner (optional). Auswahl am Brett: „Spieler gegen KI“, „Spieler gegen Stockfish“, „KI gegen Stockfish“ oder „KI gegen KI“, dazu die Farbe (Weiß/Schwarz) und die Stockfish-Stärke von „Anfänger“ bis „Volle Stärke“. Stockfish zieht von selbst. Knopf „Neues Spiel“.
 - **KI gegen KI:** Zwei verschiedene KIs (z. B. Claude in Claude Code und GPT in Codex) spielen gegeneinander – jede zieht nur ihre Farbe. Die Namen stehen in `modus.json` (`weiss_name`, `schwarz_name`).
 - **Führungsanzeige:** Links oben steht groß, wer nach Material führt (z. B. „Weiß führt mit +3“) oder „Material ausgeglichen“.
+- **Neu in Version 4:** Zugzähler unter den geschlagenen Figuren („Weiß: 33 Züge gemacht“) und gut sichtbare Versionsangabe im Fenster.
 - Die Regeln prüft [python-chess](https://python-chess.readthedocs.io/): Die KI kann keine illegalen Züge machen. Schach, Matt, Patt, Rochade, Umwandlung – alles dabei.
 - Die Partie wird gespeichert und nach versehentlichem Schließen fortgesetzt.
 

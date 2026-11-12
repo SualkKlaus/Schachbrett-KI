@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Beyhl Schachbrett KI V3 – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
+"""KI-Schachbrett Version 4 · Beyhl Software – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
 
 Aufruf:
   schachbrett.py gui [Name]      Fenster (wird von schach-brett gestartet)
@@ -25,6 +25,7 @@ HINWEIS = ("WICHTIG FÜR DICH (KI): Spieler zieht mit der MAUS am Brett und sagt
 SPEICHER = os.path.join(ORDNER, "partie.json")
 FIGUREN = os.path.join(ORDNER, "figuren")
 PORT = 47321
+VERSION_TEXT = "KI-Schachbrett Version 4 · Beyhl Software"
 MODUS_DATEI = os.path.join(ORDNER, "modus.json")
 import shutil
 STOCKFISH = shutil.which("stockfish") or ("/usr/games/stockfish" if os.path.exists("/usr/games/stockfish") else None)
@@ -436,7 +437,7 @@ def gui(argv):
 
         def titel_setzen(self):
             ws, ss, _ = spieler(self.name, getattr(self, "modus", "ki"), getattr(self, "stufe", 1), getattr(self, "seite", True))
-            self.setWindowTitle(f"Beyhl Schachbrett KI V3 – {ws} gegen {ss}")
+            self.setWindowTitle(f"KI-Schachbrett Version 4 · Beyhl Software – {ws} gegen {ss}")
 
         def animiert(self):
             return self.schritt is not None or bool(self.queue)
@@ -899,6 +900,7 @@ def gui(argv):
                 p.setBrush(QColor("#9c9c9c"))
                 p.setPen(QPen(QColor("#6e6e6e"), 2))
                 p.drawRoundedRect(QRectF(x - 8, y + 44, breite + 8, reihen * cap + 8), 12, 12)
+                self._block_unten = y + 44 + reihen * cap + 8
                 for i, t in enumerate(figs):
                     xx = x + (i % proReihe) * cap
                     yy = y + 48 + (i // proReihe) * cap
@@ -932,6 +934,21 @@ def gui(argv):
             self.cb_stufe.setGeometry(int(self.px), int(self.by + 5.2 * sq + 205), int(min(self.pw, 330)), 50)
             self.cb_seite.setVisible(self.modus != "ki_ki")
             self.cb_modus.show()
+
+            # Zugzähler unter den Geschlagenen (mit Abstand)
+            zw = (len(self.vis.move_stack) + 1) // 2      # Weiß zieht zuerst
+            zs = len(self.vis.move_stack) // 2
+            unten = getattr(self, "_block_unten", oben_frei + 200) + 10
+            p.setPen(QColor("#101010"))
+            p.setFont(QFont("Sans", 20, QFont.Bold))
+            p.drawText(QRectF(self.lx, unten, self.lw, 36), Qt.AlignLeft | Qt.AlignVCenter,
+                       f"Schwarz: {zs} Züge gemacht")
+            p.drawText(QRectF(self.px, unten, self.pw, 36), Qt.AlignLeft | Qt.AlignVCenter,
+                       f"Weiß: {zw} Züge gemacht")
+            # Versionsangabe gut sichtbar unten links
+            p.setPen(QColor("#202020"))
+            p.setFont(QFont("Sans", 18, QFont.Bold))
+            p.drawText(QRectF(self.lx, self.height() - 60, self.lw + 400, 40), Qt.AlignLeft | Qt.AlignVCenter, VERSION_TEXT)
 
             # Spielende groß
             if ende:
