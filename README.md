@@ -17,7 +17,7 @@ Der Mensch zieht mit der Maus (Weiß), die KI zieht über einfache Befehle (Schw
 ## Voraussetzungen
 - Linux (getestet unter Linux Mint), Python 3
 - `pip install python-chess PyQt5`
-- Optional für Stockfish als Gegner: `sudo apt install stockfish` (Linux). Ohne Stockfish läuft alles andere wie gewohnt – die Stockfish-Auswahl wird dann einfach nicht angezeigt.
+- Optional für Stockfish als Gegner: `sudo apt install stockfish` (Linux). **Ist Stockfish installiert, erkennt das Brett es beim Start automatisch** – die Stockfish-Auswahl erscheint dann von selbst und funktioniert sofort, ohne weitere Einstellung. Ohne Stockfish läuft alles andere wie gewohnt; die Stockfish-Auswahl wird dann einfach nicht angezeigt.
 
 ## Installation
 ```bash
