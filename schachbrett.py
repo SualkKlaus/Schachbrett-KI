@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Schachbrett KI – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
+"""Beyhl Schachbrett KI V2 – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
 
 Aufruf:
   schachbrett.py gui [Name]      Fenster (wird von schach-brett gestartet)
@@ -19,6 +19,8 @@ import time
 import chess
 
 ORDNER = os.path.dirname(os.path.abspath(__file__))
+HINWEIS = ("WICHTIG FÜR DICH (KI): Spieler zieht mit der MAUS am Brett und sagt seinen Zug NICHT im Chat – frag ihn nie danach. "
+           "Sobald er „du bist dran“ sagt: führe schach-stellung aus (dort steht sein Zug), dann schach-zug <Zug>.")
 SPEICHER = os.path.join(ORDNER, "partie.json")
 FIGUREN = os.path.join(ORDNER, "figuren")
 PORT = 47321
@@ -168,7 +170,7 @@ def cli(argv):
         name = " ".join(argv[1:]).strip()
         r = frage("vorne", name=name)
         if r is not None:
-            print(f"Brett ist schon offen und wurde nach vorn geholt: Spieler gegen {r['name']}.")
+            print(f"Brett ist schon offen und wurde nach vorn geholt: Spieler gegen {r['name']}."); print(HINWEIS)
             return 0
         args = [sys.executable, os.path.abspath(__file__), "gui"] + ([name] if name else [])
         subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -212,7 +214,7 @@ def cli(argv):
             speichere_partie(name, [])
             print("Neue Partie vorbereitet (Brett ist zu). Öffnen mit: schach-brett")
             return 0
-        print(f"Neue Partie: Spieler (Weiß) gegen {r['name']} (Schwarz). Spieler ist am Zug.")
+        print(f"Neue Partie: Spieler (Weiß) gegen {r['name']} (Schwarz). Spieler ist am Zug."); print(HINWEIS)
         return 0
 
     print(__doc__)
@@ -301,6 +303,11 @@ def gui(argv):
             self.press_pos = None
             self.setMouseTracking(True)
             self.setMinimumSize(900, 700)
+            # Knopf „Zug zurück“: nur eigener letzter Zug, solange die KI noch nicht gezogen hat
+            self.btn_zurueck = QPushButton("↶  Zug zurück", self)
+            self.btn_zurueck.setStyleSheet("QPushButton{font:bold 22px Sans;color:white;background:#2e6bd6;border-radius:12px;padding:10px}"
+                                           "QPushButton:disabled{background:#7a7a7a;color:#cfcfcf}")
+            self.btn_zurueck.clicked.connect(self.zug_zurueck)
             self.titel_setzen()
             speichere_partie(self.name, self.zuege())
 
@@ -309,7 +316,7 @@ def gui(argv):
             return [m.uci() for m in self.board.move_stack]
 
         def titel_setzen(self):
-            self.setWindowTitle(f"Schachbrett KI – Spieler gegen {self.name}")
+            self.setWindowTitle(f"Beyhl Schachbrett KI V2 – Spieler gegen {self.name}")
 
         def animiert(self):
             return self.schritt is not None or bool(self.queue)
@@ -391,8 +398,35 @@ def gui(argv):
         def tick(self):
             if self.schritt and self.uhr.elapsed() >= GLEITZEIT:
                 if self.schritt[5]:
-                    self.vis.push(self.schritt[4])
+                    if self.schritt[4] is None:
+                        self.vis = self.board.copy()
+                    else:
+                        self.vis.push(self.schritt[4])
                 self.schritt = None
+                self.naechster_schritt()
+            self.update()
+
+        def zurueck_moeglich(self):
+            return (not self.animiert() and self.board.move_stack and self.board.turn == chess.BLACK
+                    and not self.board.is_game_over(claim_draw=True))
+
+        def zug_zurueck(self):
+            if not self.zurueck_moeglich():
+                return
+            move = self.board.pop()                       # des Spielers letzter Zug
+            speichere_partie(self.name, self.zuege())
+            karte = dict(self.vis.piece_map())
+            fig = karte.pop(move.to_square, None)
+            if fig is None:
+                self.vis = self.board.copy(); self.update(); return
+            weg = self.board.piece_at(move.to_square)     # geschlagene Figur kommt zurück
+            if weg:
+                karte[move.to_square] = weg
+            if move.promotion:
+                fig = chess.Piece(chess.PAWN, chess.WHITE)
+            # sichtbar zurückgleiten; am Ende Stellung exakt übernehmen (move=None)
+            self.queue.append([(karte, fig, move.to_square, move.from_square, None)])
+            if self.schritt is None:
                 self.naechster_schritt()
             self.update()
 
@@ -678,6 +712,11 @@ def gui(argv):
                   d if d > 0 else 0)
             block("Geschlagene Weiße", gs, chess.WHITE, self.px, self.pw, oben_frei,
                   -d if d < 0 else 0)
+
+            # Knopf „Zug zurück“ rechts unter den geschlagenen Weißen
+            self.btn_zurueck.setGeometry(int(self.px), int(self.by + 5.2 * sq), int(min(self.pw, 330)), 70)
+            self.btn_zurueck.setEnabled(bool(self.zurueck_moeglich()))
+            self.btn_zurueck.show()
 
             # Spielende groß
             if ende:

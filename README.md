@@ -1,4 +1,4 @@
-# Schachbrett KI – Schach gegen jede beliebige KI
+# Beyhl Schachbrett KI V2 – Schach gegen jede beliebige KI
 
 Ein großes, gut lesbares Schachbrett für den Desktop, gegen das **jede KI** spielen kann, die Terminal-Befehle ausführen darf – zum Beispiel Claude Code, OpenCode mit DeepSeek oder ein lokales Modell.
 
@@ -9,6 +9,7 @@ Der Mensch zieht mit der Maus (Weiß), die KI zieht über einfache Befehle (Schw
 - Jeder Zug wird **sichtbar animiert** (die Figur gleitet etwa 2 Sekunden), damit man nachvollziehen kann, was passiert. Der letzte Zug bleibt farbig markiert.
 - **Geschlagene Figuren** stehen links (schwarze) und rechts (weiße) neben dem Brett, mit Materialdifferenz (z. B. „+3“).
 - Oben steht, gegen welche KI man spielt.
+- **Neu in Version 2:** Knopf „Zug zurück“ – nimmt den eigenen letzten Zug zurück, solange die KI noch nicht gezogen hat (wie die Hand, die noch auf der Figur liegt). Danach ist er gesperrt.
 - Die Regeln prüft [python-chess](https://python-chess.readthedocs.io/): Die KI kann keine illegalen Züge machen. Schach, Matt, Patt, Rochade, Umwandlung – alles dabei.
 - Die Partie wird gespeichert und nach versehentlichem Schließen fortgesetzt.
 
