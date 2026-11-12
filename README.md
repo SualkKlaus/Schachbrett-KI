@@ -10,7 +10,9 @@ Der Mensch zieht mit der Maus (Weiß), die KI zieht über einfache Befehle (Schw
 - **Geschlagene Figuren** stehen links (schwarze) und rechts (weiße) neben dem Brett, mit Materialdifferenz (z. B. „+3“).
 - Oben steht, gegen welche KI man spielt.
 - **Neu in Version 2:** Knopf „Zug zurück“ – nimmt den eigenen letzten Zug zurück, solange die KI noch nicht gezogen hat (wie die Hand, die noch auf der Figur liegt). Danach ist er gesperrt.
-- **Neu in Version 3:** Stockfish als Gegner (optional). Auswahl am Brett: „Spieler gegen KI“, „Spieler gegen Stockfish“ oder „KI gegen Stockfish“, dazu die Farbe (Weiß/Schwarz) und die Stockfish-Stärke von „Anfänger“ bis „Volle Stärke“. Stockfish zieht von selbst. Knopf „Neues Spiel“.
+- **Neu in Version 3:** Stockfish als Gegner (optional). Auswahl am Brett: „Spieler gegen KI“, „Spieler gegen Stockfish“, „KI gegen Stockfish“ oder „KI gegen KI“, dazu die Farbe (Weiß/Schwarz) und die Stockfish-Stärke von „Anfänger“ bis „Volle Stärke“. Stockfish zieht von selbst. Knopf „Neues Spiel“.
+- **KI gegen KI:** Zwei verschiedene KIs (z. B. Claude in Claude Code und GPT in Codex) spielen gegeneinander – jede zieht nur ihre Farbe. Die Namen stehen in `modus.json` (`weiss_name`, `schwarz_name`).
+- **Führungsanzeige:** Links oben steht groß, wer nach Material führt (z. B. „Weiß führt mit +3“) oder „Material ausgeglichen“.
 - Die Regeln prüft [python-chess](https://python-chess.readthedocs.io/): Die KI kann keine illegalen Züge machen. Schach, Matt, Patt, Rochade, Umwandlung – alles dabei.
 - Die Partie wird gespeichert und nach versehentlichem Schließen fortgesetzt.
 
