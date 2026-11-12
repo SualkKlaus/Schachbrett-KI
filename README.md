@@ -1,4 +1,4 @@
-# Beyhl Schachbrett KI V2 – Schach gegen jede beliebige KI
+# Beyhl Schachbrett KI V3 – Schach gegen jede beliebige KI
 
 Ein großes, gut lesbares Schachbrett für den Desktop, gegen das **jede KI** spielen kann, die Terminal-Befehle ausführen darf – zum Beispiel Claude Code, OpenCode mit DeepSeek oder ein lokales Modell.
 
@@ -10,12 +10,14 @@ Der Mensch zieht mit der Maus (Weiß), die KI zieht über einfache Befehle (Schw
 - **Geschlagene Figuren** stehen links (schwarze) und rechts (weiße) neben dem Brett, mit Materialdifferenz (z. B. „+3“).
 - Oben steht, gegen welche KI man spielt.
 - **Neu in Version 2:** Knopf „Zug zurück“ – nimmt den eigenen letzten Zug zurück, solange die KI noch nicht gezogen hat (wie die Hand, die noch auf der Figur liegt). Danach ist er gesperrt.
+- **Neu in Version 3:** Stockfish als Gegner (optional). Auswahl am Brett: „Spieler gegen KI“, „Spieler gegen Stockfish“ oder „KI gegen Stockfish“, dazu die Farbe (Weiß/Schwarz) und die Stockfish-Stärke von „Anfänger“ bis „Volle Stärke“. Stockfish zieht von selbst. Knopf „Neues Spiel“.
 - Die Regeln prüft [python-chess](https://python-chess.readthedocs.io/): Die KI kann keine illegalen Züge machen. Schach, Matt, Patt, Rochade, Umwandlung – alles dabei.
 - Die Partie wird gespeichert und nach versehentlichem Schließen fortgesetzt.
 
 ## Voraussetzungen
 - Linux (getestet unter Linux Mint), Python 3
 - `pip install python-chess PyQt5`
+- Optional für Stockfish als Gegner: `sudo apt install stockfish` (Linux). Ohne Stockfish läuft alles andere wie gewohnt – die Stockfish-Auswahl wird dann einfach nicht angezeigt.
 
 ## Installation
 ```bash

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Beyhl Schachbrett KI V2 – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
+"""Beyhl Schachbrett KI V3 – Spieler (Weiß, Maus) gegen eine KI (Schwarz, Terminal-Befehle).
 
 Aufruf:
   schachbrett.py gui [Name]      Fenster (wird von schach-brett gestartet)
@@ -10,6 +10,7 @@ Aufruf:
 Kanal: TCP 127.0.0.1:47321, eine JSON-Zeile hin, eine zurück.
 """
 import json
+import threading
 import os
 import socket
 import subprocess
@@ -24,6 +25,44 @@ HINWEIS = ("WICHTIG FÜR DICH (KI): Spieler zieht mit der MAUS am Brett und sagt
 SPEICHER = os.path.join(ORDNER, "partie.json")
 FIGUREN = os.path.join(ORDNER, "figuren")
 PORT = 47321
+MODUS_DATEI = os.path.join(ORDNER, "modus.json")
+import shutil
+STOCKFISH = shutil.which("stockfish") or ("/usr/games/stockfish" if os.path.exists("/usr/games/stockfish") else None)
+# Stufen: (Anzeige, Stockfish-Einstellungen)
+STUFEN = [("Anfänger", {"Skill Level": 0}),
+          ("Gelegenheitsspieler", {"Skill Level": 3}),
+          ("Vereinsspieler", {"UCI_LimitStrength": True, "UCI_Elo": 1600}),
+          ("Starker Spieler", {"UCI_LimitStrength": True, "UCI_Elo": 2000}),
+          ("Meister", {"UCI_LimitStrength": True, "UCI_Elo": 2400}),
+          ("Volle Stärke", {})]
+MODI = [("ki", "Spieler gegen KI"), ("sf", "Spieler gegen Stockfish"), ("ki_sf", "KI gegen Stockfish")]
+
+
+def lade_modus():
+    try:
+        with open(MODUS_DATEI) as f:
+            d = json.load(f)
+        return d.get("modus", "ki"), int(d.get("stufe", 1)), bool(d.get("seite", True))
+    except Exception:
+        return "ki", 1, True
+
+
+def speichere_modus(modus, stufe, seite=True):
+    with open(MODUS_DATEI, "w") as f:
+        json.dump({"modus": modus, "stufe": stufe, "seite": seite}, f)
+
+
+def spieler(name, modus, stufe, seite=True):
+    """(Weiß-Name, Schwarz-Name, Farbe der Befehls-KI oder None).
+    seite = Farbe des ERSTGENANNTEN Spielers (Spieler bzw. bei „KI gegen Stockfish“ die KI); True = Weiß."""
+    sf = f"Stockfish ({STUFEN[stufe][0]})"
+    if modus == "sf":
+        erster, zweiter, ki = "Spieler", sf, None
+    elif modus == "ki_sf":
+        erster, zweiter, ki = name, sf, seite
+    else:
+        erster, zweiter, ki = "Spieler", name, (not seite)
+    return (erster, zweiter, ki) if seite else (zweiter, erster, ki)
 GLEITZEIT = 2000  # ms pro Figur
 
 WERT = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
@@ -124,14 +163,21 @@ def stellung_text(name, moves):
     ende = ende_text(b)
     if ende:
         z.append(f"PARTIE BEENDET: {ende}. (Neue Partie nur auf des Spielers Wunsch: schach-neu)")
-    elif b.turn == chess.BLACK:
-        z.append(f"AM ZUG: Schwarz = {name} (DU, die KI). Mach deinen Zug mit: schach-zug <Zug>")
     else:
-        z.append(f"AM ZUG: Weiß = Spieler. Du ({name}, Schwarz) musst warten, bis Spieler gezogen hat.")
+        ws, ss, ki = spieler(name, *lade_modus())
+        farbe = "Weiß" if b.turn == chess.WHITE else "Schwarz"
+        wer = ws if b.turn == chess.WHITE else ss
+        if ki is not None and b.turn == ki:
+            z.append(f"AM ZUG: {farbe} = {name} (DU, die KI). Mach deinen Zug mit: schach-zug <Zug>")
+        elif ki is None:
+            z.append(f"AM ZUG: {farbe} = {wer}. Es spielt gerade Spieler gegen Stockfish – du ziehst nicht.")
+        else:
+            z.append(f"AM ZUG: {farbe} = {wer}. Du ({name}) musst warten, bis {wer} gezogen hat.")
     if moves:
         vor = brett_aus_zuegen(moves[:-1])
         letzt = chess.Move.from_uci(moves[-1])
-        wer = "Spieler (Weiß)" if vor.turn == chess.WHITE else f"{name} (Schwarz)"
+        _ws, _ss, _ = spieler(name, *lade_modus())
+        wer = f"{_ws} (Weiß)" if vor.turn == chess.WHITE else f"{_ss} (Schwarz)"
         z.append(f"Letzter Zug: {wer} {moves[-1]} ({vor.san(letzt)}) – Zugnummer {vor.fullmove_number}")
     else:
         z.append("Letzter Zug: – (Ausgangsstellung)")
@@ -229,7 +275,7 @@ def gui(argv):
     from PyQt5.QtNetwork import QTcpServer, QHostAddress
     from PyQt5.QtSvg import QSvgRenderer
     from PyQt5.QtWidgets import (QApplication, QWidget, QDialog, QHBoxLayout, QVBoxLayout,
-                                 QPushButton, QLabel)
+                                 QPushButton, QLabel, QComboBox)
     from PyQt5.QtCore import QSize
 
     app = QApplication(sys.argv)
@@ -266,7 +312,7 @@ def gui(argv):
             for typ, txt in ((chess.QUEEN, "Dame"), (chess.ROOK, "Turm"),
                              (chess.BISHOP, "Läufer"), (chess.KNIGHT, "Springer")):
                 b = QPushButton(txt)
-                b.setIcon(QIcon(figur_pixmap(chess.WHITE, typ, 120)))
+                b.setIcon(QIcon(figur_pixmap(parent.spieler_farbe() if parent.spieler_farbe() is not None else chess.WHITE, typ, 120)))
                 b.setIconSize(QSize(120, 120))
                 b.setFont(QFont("Sans", 22, QFont.Bold))
                 b.setMinimumSize(200, 200)
@@ -304,10 +350,46 @@ def gui(argv):
             self.setMouseTracking(True)
             self.setMinimumSize(900, 700)
             # Knopf „Zug zurück“: nur eigener letzter Zug, solange die KI noch nicht gezogen hat
-            self.btn_zurueck = QPushButton("↶  Zug zurück", self)
+            self.btn_zurueck = QPushButton("↶ Zurück", self)
             self.btn_zurueck.setStyleSheet("QPushButton{font:bold 22px Sans;color:white;background:#2e6bd6;border-radius:12px;padding:10px}"
                                            "QPushButton:disabled{background:#7a7a7a;color:#cfcfcf}")
             self.btn_zurueck.clicked.connect(self.zug_zurueck)
+            self.btn_neu = QPushButton("Neues Spiel", self)
+            self.btn_neu.setStyleSheet("QPushButton{font:bold 22px Sans;color:white;background:#15803d;border-radius:12px;padding:10px}")
+            self.btn_neu.clicked.connect(self.neues_spiel_knopf)
+            # Spielart + Stockfish-Stärke
+            self.modus, self.stufe, self.seite = lade_modus()
+            stil = ("QComboBox{font:bold 20px Sans;padding:6px;background:#f59e0b;color:#000;border-radius:8px}"
+                    "QComboBox QAbstractItemView{font:bold 20px Sans;background:#ffffff;color:#000000;outline:0}"
+                    "QComboBox QAbstractItemView::item{min-height:40px;padding:4px 8px;color:#000000;background:#ffffff}"
+                    "QComboBox QAbstractItemView::item:selected{background:#f59e0b;color:#000000}"
+                    "QComboBox QAbstractItemView::item:hover{background:#f59e0b;color:#000000}")
+            self.cb_modus = QComboBox(self); self.cb_modus.setStyleSheet(stil)
+            for k, t in MODI:
+                if k != "ki" and not STOCKFISH:
+                    continue          # Stockfish nicht installiert -> nur „gegen KI“
+                self.cb_modus.addItem(t, k)
+            if not STOCKFISH:
+                self.modus = "ki"
+            idx = self.cb_modus.findData(self.modus)
+            self.cb_modus.setCurrentIndex(idx if idx >= 0 else 0)
+            self.cb_stufe = QComboBox(self); self.cb_stufe.setStyleSheet(stil)
+            for t, _ in STUFEN: self.cb_stufe.addItem("Stockfish: " + t)
+            self.cb_stufe.setCurrentIndex(max(0, min(len(STUFEN) - 1, self.stufe)))
+            self.cb_seite = QComboBox(self); self.cb_seite.setStyleSheet(stil)
+            self.cb_seite.addItems(["Weiß", "Schwarz"])
+            self.cb_seite.setCurrentIndex(0 if self.seite else 1)
+            self.cb_seite.currentIndexChanged.connect(self.modus_geaendert)
+            from PyQt5.QtWidgets import QListView
+            for cb in (self.cb_modus, self.cb_seite, self.cb_stufe):
+                cb.setView(QListView())
+            self.cb_modus.currentIndexChanged.connect(self.modus_geaendert)
+            self.cb_stufe.currentIndexChanged.connect(self.modus_geaendert)
+            self.engine = None
+            self.sf_laeuft = False
+            self.sf_zug = None
+            self.sf_uhr = QTimer(self); self.sf_uhr.setInterval(300); self.sf_uhr.timeout.connect(self.sf_pruefen); self.sf_uhr.start()
+            self.seite_text()
             self.titel_setzen()
             speichere_partie(self.name, self.zuege())
 
@@ -316,13 +398,65 @@ def gui(argv):
             return [m.uci() for m in self.board.move_stack]
 
         def titel_setzen(self):
-            self.setWindowTitle(f"Beyhl Schachbrett KI V2 – Spieler gegen {self.name}")
+            ws, ss, _ = spieler(self.name, getattr(self, "modus", "ki"), getattr(self, "stufe", 1), getattr(self, "seite", True))
+            self.setWindowTitle(f"Beyhl Schachbrett KI V3 – {ws} gegen {ss}")
 
         def animiert(self):
             return self.schritt is not None or bool(self.queue)
 
+        def modus_geaendert(self, *_):
+            self.modus = self.cb_modus.currentData()
+            self.stufe = self.cb_stufe.currentIndex()
+            self.seite = self.cb_seite.currentIndex() == 0
+            speichere_modus(self.modus, self.stufe, self.seite)
+            self.seite_text()
+            self.titel_setzen()
+            self.update()
+
+        def sp(self):
+            return spieler(self.name, self.modus, self.stufe, self.seite)
+
+        def spieler_farbe(self):
+            return self.seite if self.modus in ("ki", "sf") else None
+
+        def sf_farbe(self):
+            return (not self.seite) if self.modus in ("sf", "ki_sf") else None
+
+        def seite_text(self):
+            erster = "Spieler" if self.modus in ("ki", "sf") else (self.name or "KI")
+            for i, f in enumerate(("Weiß", "Schwarz")):
+                self.cb_seite.setItemText(i, f"{erster} spielt {f}")
+
+        def sf_pruefen(self):
+            self.cb_stufe.setVisible(self.modus in ("sf", "ki_sf"))
+            if self.sf_zug is not None and not self.animiert():
+                zug, self.sf_zug = self.sf_zug, None
+                if self.modus in ("sf", "ki_sf") and zug in self.board.legal_moves:
+                    self.zug_anhaengen(zug)
+                return
+            if (STOCKFISH and self.modus in ("sf", "ki_sf") and not self.sf_laeuft and not self.animiert()
+                    and self.board.turn == self.sf_farbe() and not self.board.is_game_over(claim_draw=True)):
+                self.sf_laeuft = True
+                brett, stufe = self.board.copy(), self.stufe
+                def denken():
+                    try:
+                        import chess.engine
+                        if self.engine is None:
+                            self.engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH)
+                        opt = {"Skill Level": 20, "UCI_LimitStrength": False}
+                        opt.update(STUFEN[stufe][1])
+                        self.engine.configure(opt)
+                        r = self.engine.play(brett, chess.engine.Limit(time=1.0))
+                        self.sf_zug = r.move
+                    except Exception as e:
+                        open(os.path.join(ORDNER, "fenster.log"), "a").write(f"Stockfish-Fehler: {e}\n")
+                    finally:
+                        self.sf_laeuft = False
+                threading.Thread(target=denken, daemon=True).start()
+                self.update()
+
         def spieler_darf(self):
-            return (not self.animiert() and self.board.turn == chess.WHITE
+            return (self.modus in ("ki", "sf") and not self.animiert() and self.board.turn == self.spieler_farbe()
                     and not self.board.is_game_over(claim_draw=True))
 
         # ---- Geometrie
@@ -406,8 +540,20 @@ def gui(argv):
                 self.naechster_schritt()
             self.update()
 
+        def neues_spiel_knopf(self):
+            from PyQt5.QtWidgets import QMessageBox
+            if self.board.move_stack and not self.board.is_game_over(claim_draw=True):
+                f = QMessageBox(self); f.setWindowTitle("Neues Spiel"); f.setText("Laufende Partie beenden und neu anfangen?")
+                f.setStyleSheet("QLabel{font:bold 22px Sans} QPushButton{font:bold 20px Sans;min-width:120px;min-height:44px}")
+                ja = f.addButton("Ja, neu", QMessageBox.YesRole); f.addButton("Nein", QMessageBox.NoRole); f.exec_()
+                if f.clickedButton() is not ja:
+                    return
+            self.sf_zug = None
+            self.neu()
+
         def zurueck_moeglich(self):
-            return (not self.animiert() and self.board.move_stack and self.board.turn == chess.BLACK
+            return (self.modus in ("ki", "sf") and not self.sf_laeuft and self.sf_zug is None
+                    and not self.animiert() and self.board.move_stack and self.board.turn != self.spieler_farbe()
                     and not self.board.is_game_over(claim_draw=True))
 
         def zug_zurueck(self):
@@ -423,7 +569,7 @@ def gui(argv):
             if weg:
                 karte[move.to_square] = weg
             if move.promotion:
-                fig = chess.Piece(chess.PAWN, chess.WHITE)
+                fig = chess.Piece(chess.PAWN, self.spieler_farbe())
             # sichtbar zurückgleiten; am Ende Stellung exakt übernehmen (move=None)
             self.queue.append([(karte, fig, move.to_square, move.from_square, None)])
             if self.schritt is None:
@@ -466,9 +612,12 @@ def gui(argv):
             ende = ende_text(b)
             if ende:
                 return {"ok": False, "text": f"Abgelehnt: Die Partie ist beendet ({ende})."}
-            if b.turn != chess.BLACK:
-                return {"ok": False, "text": "Abgelehnt: Du bist nicht am Zug – Spieler (Weiß) ist am Zug. "
-                        "Warte auf des Spielers „du bist dran“ und lies dann zuerst schach-stellung."}
+            if self.modus == "sf":
+                return {"ok": False, "text": "Abgelehnt: Gerade spielt Spieler gegen Stockfish – du ziehst nicht."}
+            ki = self.sp()[2]
+            if b.turn != ki:
+                return {"ok": False, "text": "Abgelehnt: Du bist nicht am Zug. "
+                        "Warte auf „du bist dran“ und lies dann zuerst schach-stellung."}
             move = None
             roh = text.replace("-", "").replace(" ", "")
             try:
@@ -483,7 +632,7 @@ def gui(argv):
                 except ValueError:
                     move = None
             if move is None:
-                return {"ok": False, "text": f"Abgelehnt: „{text}“ ist kein legaler Zug für Schwarz in "
+                return {"ok": False, "text": f"Abgelehnt: „{text}“ ist kein legaler Zug für {'Weiß' if ki else 'Schwarz'} in "
                         f"dieser Stellung.\nLegale Züge ({b.legal_moves.count()}): {legal}"}
             san = b.san(move)
             self.zug_anhaengen(move)
@@ -492,9 +641,12 @@ def gui(argv):
             if ende:
                 t += f"\nPARTIE BEENDET: {ende}."
             else:
-                if self.board.is_check():
-                    t += "\nSpieler (Weiß) steht im Schach."
-                t += "\nJetzt ist Spieler (Weiß) am Zug – warte auf sein „du bist dran“."
+                if self.modus == "ki_sf":
+                    t += "\nJetzt denkt Stockfish und zieht von selbst. Lies danach wieder schach-stellung."
+                else:
+                    if self.board.is_check():
+                        t += "\nSpieler steht im Schach."
+                    t += "\nJetzt ist Spieler am Zug – warte auf sein „du bist dran“."
             return {"ok": True, "text": t}
 
         def nach_vorn(self):
@@ -517,10 +669,10 @@ def gui(argv):
                 self.update()
                 return
             p = self.board.piece_at(sq)
-            if self.auswahl is not None and sq != self.auswahl and not (p and p.color == chess.WHITE):
+            if self.auswahl is not None and sq != self.auswahl and not (p and p.color == self.spieler_farbe()):
                 self.versuche_zug(self.auswahl, sq)
                 return
-            if p and p.color == chess.WHITE:
+            if p and p.color == self.spieler_farbe():
                 self.auswahl = sq
                 self.drag_von = sq
                 self.drag_pos = e.pos()
@@ -574,26 +726,28 @@ def gui(argv):
 
             # Titel + Status klein rechts oben neben dem Brett
             p.setPen(QColor("#101010"))
-            p.setFont(QFont("Sans", 26, QFont.Bold))
-            titel_r = QRectF(self.px, self.by, self.pw, 120)
+            p.setFont(QFont("Sans", 19, QFont.Bold))
+            titel_r = QRectF(self.px, self.by, self.pw, 90)
             p.drawText(titel_r, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
-                       f"Spieler gegen\n{self.name}")
+                       "Weiß: {}\nSchwarz: {}".format(*self.sp()[:2]))
             ende = None if self.animiert() else ende_text(self.vis)
             if ende:
                 st, farbe = ende, "#5a0000"
             elif self.animiert():
                 st, farbe = "Zug wird gezeigt …", "#0b2f80"
+            elif self.sf_laeuft:
+                st, farbe = "Stockfish denkt …", "#0b2f80"
             elif self.vis.turn == chess.WHITE:
-                st = "Spieler (Weiß) ist am Zug" + ("  –  SCHACH!" if self.vis.is_check() else "")
+                st = self.sp()[0] + " (Weiß) ist am Zug" + ("  –  SCHACH!" if self.vis.is_check() else "")
                 farbe = "#101010" if not self.vis.is_check() else "#900000"
             else:
-                st = f"{self.name} (Schwarz) ist am Zug" + ("  –  SCHACH!" if self.vis.is_check() else "")
+                st = self.sp()[1] + " (Schwarz) ist am Zug" + ("  –  SCHACH!" if self.vis.is_check() else "")
                 farbe = "#101010" if not self.vis.is_check() else "#900000"
             p.setPen(QColor(farbe))
-            p.setFont(QFont("Sans", 20, QFont.Bold))
-            p.drawText(QRectF(self.px, self.by + 120, self.pw, 70),
+            p.setFont(QFont("Sans", 19, QFont.Bold))
+            p.drawText(QRectF(self.px, self.by + 95, self.pw, 90),
                        Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, st)
-            oben_frei = self.by + 200   # darunter beginnen die Geschlagenen
+            oben_frei = self.by + 195   # darunter beginnen die Geschlagenen
 
             # Felder
             hell, dunkel = QColor("#f0d9b5"), QColor("#b58863")
@@ -714,9 +868,16 @@ def gui(argv):
                   -d if d < 0 else 0)
 
             # Knopf „Zug zurück“ rechts unter den geschlagenen Weißen
-            self.btn_zurueck.setGeometry(int(self.px), int(self.by + 5.2 * sq), int(min(self.pw, 330)), 70)
+            self.btn_zurueck.setGeometry(int(self.px), int(self.by + 5.2 * sq), int(min(self.pw, 330) // 2 - 5), 70)
+            self.btn_neu.setGeometry(int(self.px + min(self.pw, 330) // 2 + 5), int(self.by + 5.2 * sq), int(min(self.pw, 330) // 2 - 5), 70)
+            self.btn_neu.show()
             self.btn_zurueck.setEnabled(bool(self.zurueck_moeglich()))
             self.btn_zurueck.show()
+            self.cb_modus.setGeometry(int(self.px), int(self.by + 5.2 * sq + 85), int(min(self.pw, 330)), 50)
+            self.cb_seite.setGeometry(int(self.px), int(self.by + 5.2 * sq + 145), int(min(self.pw, 330)), 50)
+            self.cb_stufe.setGeometry(int(self.px), int(self.by + 5.2 * sq + 205), int(min(self.pw, 330)), 50)
+            self.cb_seite.show()
+            self.cb_modus.show()
 
             # Spielende groß
             if ende:
